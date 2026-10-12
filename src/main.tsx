@@ -17,6 +17,17 @@ import { SelectableList } from './module-03-typescript/04-generic-list/Selectabl
 import { CheckoutWizard } from './module-04-state/02-checkout-wizard/CheckoutWizard';
 import { CartProvider, useCart, useCartActions } from './module-04-state/03-cart-context/CartContext';
 import { MarketplaceFilters } from './module-04-state/04-url-state/MarketplaceFilters';
+import { ApiError } from './module-05-api/ApiError';
+import { ProfileForm, type Profile } from './module-05-api/03-server-validation/ProfileForm';
+import { WishlistButton } from './module-05-api/04-optimistic-wishlist/WishlistButton';
+import { RedeemCodeForm, type RedeemResult } from './module-06-react19/01-redeem-code/RedeemCodeForm';
+import { RealmChat, type ChatMessage } from './module-06-react19/02-realm-chat/RealmChat';
+import { ProfilePage } from './module-06-react19/03-use-suspense/ProfilePage';
+import { ProfileTabs, type TabId } from './module-06-react19/04-transitions/ProfileTabs';
+import { MarketplacePage } from './module-07-performance/01-rerender-bug-hunt/MarketplacePage';
+import { SKINS } from './module-07-performance/01-rerender-bug-hunt/skins.fixture';
+import { VirtualList } from './module-07-performance/02-virtual-list/VirtualList';
+import { CheckoutLauncher } from './module-07-performance/03-lazy-preload/CheckoutLauncher';
 
 const log = (label: string) => (value: unknown) => console.log(label, value);
 
@@ -120,6 +131,82 @@ function CartDemo() {
   );
 }
 
+// Module 5-7 fakes: random latency and random failures, so you can see every state.
+const fakeSaveProfile = async (p: Profile): Promise<Profile> => {
+  await delay(800);
+  if (p.gamertag.trim().toLowerCase() === 'notch') {
+    throw new ApiError({ kind: 'http', status: 400, title: 'One or more validation errors occurred.', fieldErrors: { gamertag: ['Gamertag is already taken.'] } });
+  }
+  if (p.bio.includes('creeper')) {
+    throw new ApiError({ kind: 'http', status: 400, title: 'Validation failed', fieldErrors: { bio: ['Bio contains a blocked word.'] } });
+  }
+  if (Math.random() < 0.2) throw new ApiError({ kind: 'http', status: 500, title: 'Internal Server Error', traceId: '00-demo-01' });
+  return { gamertag: p.gamertag.trim(), bio: p.bio.trim() };
+};
+const fakeSetWishlisted = async (id: string, value: boolean) => {
+  await delay(500 + Math.random() * 1500);
+  if (Math.random() < 0.3) throw new Error('503');
+  console.log('wishlist saved', id, value);
+};
+const fakeRedeem = async (code: string): Promise<RedeemResult> => {
+  await delay(1000);
+  if (code.startsWith('AAAAA')) return { ok: false, reason: 'already-redeemed' };
+  if (code.startsWith('EEEEE')) return { ok: false, reason: 'expired' };
+  if (Math.random() < 0.2) throw new Error('boom');
+  return Math.random() < 0.5 ? { ok: true, itemName: 'Creeper Hoodie' } : { ok: false, reason: 'not-found' };
+};
+let chatIds = 100;
+const fakeSendMessage = async (text: string): Promise<ChatMessage> => {
+  await delay(700 + Math.random() * 1500);
+  if (Math.random() < 0.3) throw new Error('503');
+  return { id: `m${++chatIds}`, author: 'Alex_Builds', text };
+};
+const fakeFetchProfile = async (username: string) => {
+  await delay(800);
+  if (Math.random() < 0.3) throw new Error('503');
+  return { username, achievements: username.length * 7 };
+};
+
+function ProfilePageDemo() {
+  const [username, setUsername] = useState('Steve');
+  return (
+    <>
+      {['Steve', 'Alex', 'Notch_Fan'].map((u) => (
+        <button key={u} type="button" aria-pressed={u === username} onClick={() => setUsername(u)}>
+          {u}
+        </button>
+      ))}
+      <ProfilePage username={username} fetchProfile={fakeFetchProfile} />
+    </>
+  );
+}
+
+function ProfileTabsDemo() {
+  const [resources] = useState<Record<TabId, Promise<string>>>(() => ({
+    overview: delay(600).then(() => 'Alex_Builds has played 412 hours.'),
+    skins: delay(1500).then(() => '23 skins, 4 capes.'),
+    achievements: delay(2500).then(() => '87 of 122 advancements.'),
+  }));
+  return <ProfileTabs resources={resources} />;
+}
+
+const BLOCKS = Array.from({ length: 10_000 }, (_, i) => ({ id: i + 1, name: `Block #${i + 1}` }));
+
+const fakeLoadCheckout = async () => {
+  await delay(1200);
+  if (Math.random() < 0.3) throw new TypeError('Failed to fetch dynamically imported module');
+  return {
+    default: ({ onClose }: { onClose: () => void }) => (
+      <div role="dialog" aria-label="Checkout" style={{ border: '1px solid', padding: 16 }}>
+        <h2>Checkout</h2>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ),
+  };
+};
+
 /** Keeps one unfinished problem (e.g. a starter that throws) from crashing the whole playground. */
 class ProblemBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -153,7 +240,7 @@ const PROBLEMS: Record<string, () => ReactNode> = {
   '2.2 Skin search': () => <SkinSearch searchSkins={fakeSearchSkins} />,
   '2.3 Purchase button': () => (
     <>
-      <p>Tip: DevTools → Network → set throttling to "Offline" to test.</p>
+      <p>Tip: DevTools -> Network -> set throttling to "Offline" to test.</p>
       <PurchaseButton onPurchase={() => console.log('purchase!')} />
     </>
   ),
@@ -162,6 +249,30 @@ const PROBLEMS: Record<string, () => ReactNode> = {
   '4.2 Checkout wizard': () => <CheckoutWizard submitOrder={fakeSubmitOrder} />,
   '4.3 Cart context': () => <CartDemo />,
   '4.4 URL filters': () => <MarketplaceFilters />,
+  '5.3 Profile form': () => (
+    <>
+      <p>Tip: gamertag "Notch" or a bio containing "creeper" fails validation.</p>
+      <ProfileForm initialProfile={{ gamertag: 'Alex_Builds', bio: 'I build castles.' }} saveProfile={fakeSaveProfile} />
+    </>
+  ),
+  '5.4 Wishlist': () => (
+    <WishlistButton itemId="skin-1" itemName="Creeper Hoodie" initialWishlisted={false} setWishlisted={fakeSetWishlisted} />
+  ),
+  '6.1 Redeem code': () => <RedeemCodeForm redeemCode={fakeRedeem} />,
+  '6.2 Realm chat': () => (
+    <RealmChat
+      currentUser="Alex_Builds"
+      initialMessages={[{ id: 'm1', author: 'Steve', text: 'Anyone up for the Nether?' }]}
+      sendMessage={fakeSendMessage}
+    />
+  ),
+  '6.3 Profile (use)': () => <ProfilePageDemo />,
+  '6.4 Profile tabs': () => <ProfileTabsDemo />,
+  '7.1 Marketplace': () => <MarketplacePage skins={SKINS} />,
+  '7.2 Virtual list': () => (
+    <VirtualList label="Blocks" items={BLOCKS} itemHeight={32} height={320} getKey={(b) => b.id} renderItem={(b) => b.name} />
+  ),
+  '7.3 Lazy checkout': () => <CheckoutLauncher loadCheckoutDialog={fakeLoadCheckout} />,
 };
 
 function Playground() {
