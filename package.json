@@ -9,7 +9,16 @@
     "test": "vitest",
     "test:m1": "vitest src/module-01-warmup",
     "test:m2": "vitest src/module-02-hooks",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:m3": "vitest src/module-03-typescript",
+    "typecheck:m3": "tsc -p src/module-03-typescript",
+    "test:m4": "vitest src/module-04-state",
+    "test:m5": "vitest src/module-05-api",
+    "test:m6": "vitest src/module-06-react19",
+    "test:m7": "vitest src/module-07-performance",
+    "test:m8": "vitest src/module-08-accessibility",
+    "test:m9": "vitest src/module-09-i18n",
+    "test:m10": "vitest src/module-10-security"
   },
   "dependencies": {
     "react": "^19.1.0",

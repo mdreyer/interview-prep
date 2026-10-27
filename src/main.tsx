@@ -28,6 +28,13 @@ import { MarketplacePage } from './module-07-performance/01-rerender-bug-hunt/Ma
 import { SKINS } from './module-07-performance/01-rerender-bug-hunt/skins.fixture';
 import { VirtualList } from './module-07-performance/02-virtual-list/VirtualList';
 import { CheckoutLauncher } from './module-07-performance/03-lazy-preload/CheckoutLauncher';
+import { ConfirmPurchase } from './module-08-accessibility/01-modal-dialog/ConfirmPurchase';
+import { ServerSearch } from './module-08-accessibility/02-combobox/ServerSearch';
+import { InventoryGrid } from './module-08-accessibility/03-inventory-grid/InventoryGrid';
+import { RealmSettings } from './module-08-accessibility/04-a11y-bug-hunt/RealmSettings';
+import { I18nProvider, LanguagePicker, useI18n } from './module-09-i18n/03-locale-provider/i18n';
+import { Leaderboard } from './module-09-i18n/04-i18n-bug-hunt/Leaderboard';
+import { ServerMotd } from './module-10-security/02-motd-renderer/ServerMotd';
 
 const log = (label: string) => (value: unknown) => console.log(label, value);
 
@@ -207,6 +214,54 @@ const fakeLoadCheckout = async () => {
   };
 };
 
+const SLOTS = Array.from({ length: 27 }, (_, i) =>
+  i % 4 === 0 ? { id: `item-${i}`, name: ['Oak Planks', 'Torch', 'Diamond', 'Bread', 'Cobblestone', 'Ender Pearl', 'Iron Pickaxe'][i % 7]!, count: (i % 64) + 1 } : null,
+);
+const SERVER_NAMES = ['Skyblock Isles', 'Creative Plots', 'Parkour Peak', 'Hypixel-ish Minigames', 'Survival Island', 'Bedwars Arena'];
+
+function LocaleDemo() {
+  function Readout() {
+    const { locale, dir, formatNumber } = useI18n();
+    return (
+      <p>
+        locale: {locale}, dir: {dir}, 1234567.5 is shown as {formatNumber(1234567.5)}
+      </p>
+    );
+  }
+  return (
+    <I18nProvider>
+      <LanguagePicker />
+      <Readout />
+    </I18nProvider>
+  );
+}
+
+function LeaderboardDemo() {
+  const [locale, setLocale] = useState('en-US');
+  const now = new Date();
+  const day = 86_400_000;
+  return (
+    <>
+      <select aria-label="Locale" value={locale} onChange={(e) => setLocale(e.target.value)}>
+        {['en-US', 'de-DE', 'ja-JP', 'pt-BR', 'ar'].map((l) => (
+          <option key={l}>{l}</option>
+        ))}
+      </select>
+      <Leaderboard
+        locale={locale}
+        timeZone="Asia/Tokyo"
+        now={now}
+        seasonEnd={new Date('2026-10-30T15:00:00Z')}
+        players={[
+          { name: 'Zoe', score: 1234567, winRate: 0.853, country: 'DE', lastPlayed: new Date(now.getTime() - day) },
+          { name: 'émile', score: 1234567, winRate: 0.5, country: 'BR', lastPlayed: new Date(now.getTime() - 3 * day) },
+          { name: 'Ana', score: 1234567, winRate: 0.25, country: 'JP', lastPlayed: now },
+        ]}
+      />
+    </>
+  );
+}
+
 /** Keeps one unfinished problem (e.g. a starter that throws) from crashing the whole playground. */
 class ProblemBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -240,7 +295,7 @@ const PROBLEMS: Record<string, () => ReactNode> = {
   '2.2 Skin search': () => <SkinSearch searchSkins={fakeSearchSkins} />,
   '2.3 Purchase button': () => (
     <>
-      <p>Tip: DevTools -> Network -> set throttling to "Offline" to test.</p>
+      <p>Tip: in DevTools, open the Network tab and set throttling to "Offline" to test.</p>
       <PurchaseButton onPurchase={() => console.log('purchase!')} />
     </>
   ),
@@ -273,6 +328,20 @@ const PROBLEMS: Record<string, () => ReactNode> = {
     <VirtualList label="Blocks" items={BLOCKS} itemHeight={32} height={320} getKey={(b) => b.id} renderItem={(b) => b.name} />
   ),
   '7.3 Lazy checkout': () => <CheckoutLauncher loadCheckoutDialog={fakeLoadCheckout} />,
+  '8.1 Dialog': () => <ConfirmPurchase bundleName="Explorer Bundle" price="990 Minecoins" onConfirm={() => console.log('bought!')} />,
+  '8.2 Combobox': () => <ServerSearch servers={SERVER_NAMES} onSelect={log('selected')} />,
+  '8.3 Inventory grid': () => <InventoryGrid slots={SLOTS} onSelect={log('slot')} />,
+  '8.4 A11y bug hunt': () => (
+    <RealmSettings
+      initial={{ name: 'Skyblock Isles', allowCheats: false }}
+      thumbnailUrl="https://placehold.co/160x90"
+      onSave={log('save')}
+      onClose={() => console.log('close')}
+    />
+  ),
+  '9.3 Locale provider': () => <LocaleDemo />,
+  '9.4 i18n bug hunt': () => <LeaderboardDemo />,
+  '10.2 MOTD': () => <ServerMotd motd="§6§lSkyblock Isles §r§7| §aNew islands! §ehttps://discord.example/skyblock §c<b>not bold</b>" />,
 };
 
 function Playground() {
