@@ -15,44 +15,57 @@ export function MinecoinBalance({
   tickMs = 1000,
 }: MinecoinBalanceProps) {
   const [balance, setBalance] = useState<number | null>(null);
-  const [formatted, setFormatted] = useState('');
   const [secondsAgo, setSecondsAgo] = useState(0);
 
-  // Load the balance
-  useEffect(() => {
-    fetchBalance(userId).then((value) => {
-      setBalance(value);
-      setSecondsAgo(0);
-    });
-  }, []);
-
-  // Format it for display
-  useEffect(() => {
-    setFormatted(balance === null ? '' : new Intl.NumberFormat(locale).format(balance));
-  }, [balance]);
-
   // Refresh when the player comes back to this tab
+  // FIX: combine useEffects that fetch the same data
+  // FIX: remove event listener on next focus
   useEffect(() => {
-    const onFocus = () => {
+    let canceled = false;
+
+    const load = () => {
       fetchBalance(userId).then((value) => {
+        if (canceled) return;
         setBalance(value);
         setSecondsAgo(0);
       });
     };
-    window.addEventListener('focus', onFocus);
+
+    load();
+    window.addEventListener('focus', load);
+
+    return () => {
+      canceled = true;
+      window.removeEventListener('focus', load);
+    };
   }, [userId, fetchBalance]);
 
   // "Updated Ns ago" ticker
+  // FIX: use functional set state to grab prev state value
+  // FIX: reset interval when balance changes
   useEffect(() => {
-    setInterval(() => {
-      setSecondsAgo(secondsAgo + 1);
+    setSecondsAgo(0);
+
+    const interval = setInterval(() => {
+      setSecondsAgo((prev) => prev + 1);
     }, tickMs);
-  }, []);
+
+    return () => clearInterval(interval);
+  }, [tickMs]);
+
+  // Format balance for display
+  // FIX: formatted does not need to be in state
+  const formatted =
+    balance === null ? '' : new Intl.NumberFormat(locale).format(balance);
 
   return (
     <section>
       <h2>Minecoin balance</h2>
-      <p>{balance === null ? 'Loading balance…' : `Balance: ${formatted} Minecoins`}</p>
+      <p>
+        {balance === null
+          ? 'Loading balance…'
+          : `Balance: ${formatted} Minecoins`}
+      </p>
       <p>Updated {secondsAgo}s ago</p>
     </section>
   );
