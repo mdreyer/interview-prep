@@ -1,60 +1,109 @@
-# React + TypeScript practice
+# R.1 Player Profile Routes (React Router: the URL as the source of truth)
 
-Each module adds a folder under `src/`.
-Each problem comes with a ticket-style spec (`README.md`), a starter file, and a test suite that tells you when you're done.
+**Difficulty:** Intermediate+ · **Suggested time:** 40 minutes
+**Skills:** React Router v7, nested and layout routes, path params, `NavLink`, redirects with `replace`, `useNavigate`, validating params, URL encoding
 
-## Setup (about 5 minutes, one time)
+## Setup (once)
 
-**Recommended: GitHub + StackBlitz** (nothing to install, and your work is saved):
+This exercise needs React Router, which the other modules don't:
 
-1. Create a new **public** GitHub repo, for example `mojang-prep`.
-2. On the repo page, click **Add file → Upload files**, drag in **everything inside this folder**
-   (including `package.json` and `src/`), and commit.
-3. Open `https://stackblitz.com/github/<your-username>/mojang-prep`.
-   StackBlitz installs the dependencies automatically. Click **Fork** so you can save your edits.
-4. In the StackBlitz terminal:
-   ```bash
-   npx vitest src/module-01-warmup      # tests rerun every time you save
-   ```
-   Open a second terminal tab and run `npm run dev` if you want to click around the playground UI.
+```bash
+npm install react-router
+```
 
-**When a new module arrives** (it comes as a zip of only the new and changed files):
-1. In your **StackBlitz fork**, drag the new `src/module-XX-...` folder from the unzipped files onto the `src`
-   folder in StackBlitz's file explorer. For changed files (`package.json`, `src/main.tsx`), open each one and paste
-   in the new contents.
-2. Optional backup: upload the same files to GitHub (**Add file → Upload files**, drag in the *contents* of the
-   unzipped folder; files with the same path are replaced).
+(In StackBlitz, the terminal works, or add `"react-router": "^7.6.0"` to `dependencies` in `package.json` and let it reinstall.)
 
-**Fallback: run locally** (needs Node 20+): `npm install`, then `npx vitest src/module-01-warmup`.
+## The ticket
 
-## How to work a problem
+> Player profiles have three sections: Overview, Skins and Achievements. Right now the section lives in component state,
+> so a shared link always opens on Overview, Back leaves the page entirely, and refreshing forgets where you were.
+> Put the player and the section **in the URL**: `/players/Steve/skins`.
 
-1. Read the problem's `README.md`. Start a timer for the suggested time.
-2. Turn **AI autocomplete off** (check the editor settings in StackBlitz). Ordinary IntelliSense is fine.
-3. Get the tests green. Then answer the "Be ready to answer out loud" questions **out loud**.
-4. Paste your component into the chat with Claude for an interviewer-style review.
-5. Once a day, redo one problem from scratch in a **plain editor** (the CoderPad sandbox or HackerRank's React
-   environment) with no tests. That's the closest thing to interview conditions.
+You'll edit `PlayerRoutes.tsx`. The section content is given in `sections.tsx` (`SECTIONS`, each with an `id`, a `label`
+and a `Component`), so you can focus on the routing. The tests wrap your component in a `<MemoryRouter>`; in the app it
+would sit inside a `<BrowserRouter>`.
 
-## Roadmap
+## Requirements
 
-| Day | Date | Module | Focus |
-|---|---|---|---|
-| 1 | Tue 10/6 | **1. Warm-up** | State, forms, lists, keys, bug hunt |
-| 2 | Wed 10/7 | **2. Hooks in depth** | Effects, cleanup, stale closures, race conditions, custom hooks |
-| 3 | Thu 10/8 | **3. TypeScript** | Generics, discriminated unions, narrowing, C#-shaped DTOs |
-| 4 | Fri 10/9 | **4. State & architecture** | Checkout as a state machine, reducers, context, URL state |
-| 5 | Sat 10/10 | **5. API integration (C#)** | Typed client, ProblemDetails errors, retries, idempotency, optimistic UI |
-| 6 | Sun 10/11 | **8. Accessibility** | Dialog focus management, ARIA patterns, live regions, keyboard grids |
-| 7 | Mon 10/12 | **10. Security** | XSS, open redirects, CSRF/antiforgery, token storage, CSP |
-| 8 | Tue 10/13 | **9. Internationalization** | `Intl`, plurals, RTL, string externalization |
-| 9 | Wed 10/14 | **6. Modern React 19** | Actions, `useActionState`, `useOptimistic`, `use()`, transitions |
-| 10 | Thu 10/15 | **7. Performance** | Memoization, virtualization, code-splitting, profiling |
-| 11 | Fri 10/16 | **11. Component library** | Compound components, polymorphism, API design |
-| — | If there's time | Testing · Capstone mock interviews · Behavioral prep | |
+**Routes**
+1. `/players/:username/:section` shows the player page: an `<h1>` with the username, a `<nav aria-label="Profile sections">`
+   with one **link** per entry in `SECTIONS`, a "Go to player" form, and the section's content below.
+2. `/players/:username` on its own **redirects** to `/players/:username/overview`, **replacing** the history entry
+   (so Back doesn't land on the redirect and bounce forward again).
+3. An unknown section (`/players/Steve/emotes`) still shows the player's heading and nav, plus a `role="alert"` reading
+   `Unknown section "emotes".` and a `Go to the overview` link.
+4. Any other URL shows `<h1>Page not found</h1>`.
 
-Every module includes **about 15 minutes of quick-fire JS/browser fundamentals** (`QUICKFIRE.md`) to rehearse the
-question-and-answer part that opens each interview.
+**Links**
+5. The section links are real `<a href>` links (`/players/Steve/skins`), not buttons with `onClick`. The current one has
+   `aria-current="page"`, and only that one.
+6. Clicking a section pushes a history entry: Back returns to the previous section.
 
-**If your interviews land early (10/14):** the order above front-loads the most likely topics. Modules 1–5, 8, 10 and 9
-will be done by 10/13. Modules 6, 7 and 11 then shrink to talking-point cheat sheets you can review the night before.
+**Go to player**
+7. A text input labelled `Go to player` and a `Go` button (Enter submits too). It navigates to the trimmed name, **keeping the
+   current section**, e.g. from `/players/Steve/skins`, "Alex" goes to `/players/Alex/skins`. From an unknown section, go to `overview`.
+   Ignore a blank name.
+8. Names go into the URL **encoded** (`Mr Redstone` → `/players/Mr%20Redstone/…`), and the page shows them decoded.
+
+<details><summary>Hint 1: the shape of the routes</summary>
+
+A **layout route** renders the part every section shares (heading, nav, form) once, and an `<Outlet />` where the matching child goes:
+
+```tsx
+<Routes>
+  <Route path="/players/:username" element={<PlayerProfile />}>
+    <Route index element={/* requirement 2 */} />
+    <Route path=":section" element={/* requirement 3, or the section */} />
+  </Route>
+  <Route path="*" element={/* requirement 4 */} />
+</Routes>
+```
+</details>
+
+<details><summary>Hint 2: links that know where they are</summary>
+
+A `to` without a leading `/` is **relative to the route that renders it**. Inside the layout route, `<NavLink to="skins">` becomes
+`/players/Steve/skins`, with the username filled in and encoded for you. `NavLink` also sets `aria-current="page"` on its own when it matches.
+</details>
+
+<details><summary>Hint 3: reading the section in the layout</summary>
+
+`useParams()` in the layout gives you `username`, and also the params its child matched. The section id comes from the URL,
+so treat it as untrusted: check it against `SECTIONS` before using it.
+</details>
+
+## Run the tests
+
+```bash
+npx vitest src/extra-routing
+```
+
+## Try it in the playground
+
+```tsx
+import { BrowserRouter } from 'react-router';
+import { PlayerRoutes } from './extra-routing/01-player-routes/PlayerRoutes';
+
+<BrowserRouter>
+  <PlayerRoutes />
+</BrowserRouter>
+```
+
+Then open `/players/Steve/skins` in the preview's address bar, click around, and use Back and Forward.
+
+## Be ready to answer out loud
+
+- **Path param or query param?** `/players/Steve/skins` vs `/players/Steve?tab=skins`. (Path for *what* you're looking at and
+  its hierarchy; query for *how* you're looking at it: filters, sort, page number. Both are shareable and survive refresh.)
+- **`push` vs `replace`:** when is each right? (Push for a navigation the player chose; replace for redirects, fixing up an invalid
+  URL, and updates the player wouldn't think of as a "page", like typing in a search box. 4.4 used `replaceState` for that.)
+- **Links or buttons?** Why `<a href>` here, and why `aria-current="page"` rather than the ARIA tabs pattern from 6.4?
+  (They change the URL, so they're navigation: middle-click, copy link and "open in new tab" all work. ARIA tabs are for
+  panels within one page. Mixing the two (`role="tab"` on links) is debated; links in a `<nav>` is the safe choice.)
+- **Deep links in production:** `BrowserRouter` works in dev, but refreshing `/players/Steve/skins` on the real site returns a 404.
+  Why, and how do you fix it? (The server has no file at that path. It must fall back to `index.html` for app routes: in ASP.NET Core,
+  `app.MapFallbackToFile("index.html")`; on Azure Static Web Apps, a `navigationFallback` rule.)
+- **After a route change**, what should happen to focus and scroll for keyboard and screen-reader users? (Scroll to the top or restore the old
+  position, and move focus to the new `<h1>` or announce the page title: a full page load does that for free, a client-side navigation doesn't. That's 4.2.)
+- **Big apps:** how would you code-split by route? (7.3: `lazy()` per route, or React Router's `lazy` route property.) And where would the
+  player's data be fetched? (In the component with a cache like 6.3 or TanStack Query, or in a route **loader** so it starts in parallel with the code.)
